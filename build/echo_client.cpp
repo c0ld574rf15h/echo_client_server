@@ -2,9 +2,22 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <stdio.h>
+#include <thread>
 #include "utility.h"
 using namespace std;
+
+void recv_msg(int sd) {
+    char buf[MAX_MSGLEN];
+    while(true) {
+        int len = recv(sd, buf, MAX_MSGLEN-1, 0);
+        buf[min(len, MAX_MSGLEN)] = '\0';
+        if(len == -1) {
+            LOG(ERROR) << "recv() returned an error";
+            break;
+        }
+        LOG(INFO) << "Echo message from server : " << buf;
+    }
+}
 
 int main(int argc, char* argv[]) {
     google::InitGoogleLogging(argv[0]);
@@ -33,6 +46,10 @@ int main(int argc, char* argv[]) {
     }
 
     LOG(INFO) << "Connected to Server";
+
+    thread recv_thread(recv_msg, sd);
+    recv_thread.detach();
+
     while(true) {
         char buf[MAX_MSGLEN];
         int len = read(0, buf, MAX_MSGLEN-1);
@@ -46,13 +63,6 @@ int main(int argc, char* argv[]) {
             LOG(ERROR) << "send() returned an error";
             return ERROR;
         }
-
-        len = recv(sd, buf, MAX_MSGLEN-1, 0);
-        if(len == -1) {
-            LOG(ERROR) << "recv() returned an error";
-            return ERROR;
-        }
-        LOG(INFO) << "Echo message from server : " << buf;
     }
 
     close(sd);

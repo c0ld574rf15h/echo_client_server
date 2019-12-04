@@ -1,7 +1,9 @@
 #include <glog/logging.h>
 #include <sys/time.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <cstdlib>
 #include <set>
 #include "utility.h"
 using namespace std;
@@ -14,6 +16,8 @@ int main(int argc, char* argv[]) {
         LOG(ERROR) << "Usage : " << argv[0] << " Port Number [-b]";
         return ERROR;
     }
+    bool broadcast_mode = false;
+    if(argc == 3) broadcast_mode = true;
 
     LOG(INFO) << "Initializing Server";
 
@@ -45,7 +49,7 @@ int main(int argc, char* argv[]) {
         close(master_sd); return ERROR;
     }
 
-    // Initialize Master fd Set
+    // Initialize FD Set
     fd_set master_set, working_set;
     FD_ZERO(&master_set);
     int max_sd = master_sd;
@@ -57,8 +61,8 @@ int main(int argc, char* argv[]) {
     timeout.tv_usec = 0;
 
     // 4. Receive clients or messages
-    set<int> fd_set;
-    fd_set.insert(master_sd);
+    set<int> sd_set;
+    sd_set.insert(master_sd);
 
     while(true) {
         memcpy(&working_set, &master_set, sizeof(master_set));
@@ -70,7 +74,7 @@ int main(int argc, char* argv[]) {
                 LOG(ERROR) << "Timeout Expired";
                 return ERROR;
             default:
-                for(auto it=fd_set.begin();it!=fd_set.end();++it) {
+                for(auto it=sd_set.begin();it!=sd_set.end();++it) {
                     if(FD_ISSET(*it, &working_set)) {
                         int c_sd = 0;
                         if(*it == master_sd) {
@@ -78,10 +82,10 @@ int main(int argc, char* argv[]) {
                             socklen_t c_len = sizeof(sockaddr);
                             c_sd = accept(master_sd, reinterpret_cast<struct sockaddr*>(&c_addr), &c_len);
                             if(c_sd == -1) {
-                                LOG(INFO) << "End Reaping Clients";
-                                break;
+                                LOG(ERROR) << "accept() returned an error";
+                                return ERROR;
                             }
-                            fd_set.insert(c_sd);
+                            sd_set.insert(c_sd);
                             LOG(INFO) << "New Incoming Connection - Client #" << c_sd;
                             FD_SET(c_sd, &master_set);
                             max_sd = max(max_sd, c_sd);
@@ -95,13 +99,24 @@ int main(int argc, char* argv[]) {
                                     break;
                                 case CLOSE_CONN:
                                     LOG(WARNING) << "Connection has been closed by client - " << *it;
-                                    fd_set.erase(*it); FD_CLR(*it, &working_set);
+                                    sd_set.erase(*it); FD_CLR(*it, &working_set);
                                     break;
                                 default:
                                     LOG(INFO) << rcv << " Bytes Received [Client #" << *it << "] : " << buf;
-                                    if(send(*it, buf, rcv, 0) < 0) {
-                                        LOG(ERROR) << "send() returned an error";
-                                        return ERROR;
+                                    if(!broadcast_mode) {
+                                        if(send(*it, buf, rcv, 0) < 0) {
+                                            LOG(ERROR) << "send() returned an error";
+                                            return ERROR;
+                                        }
+                                    } else {
+                                        for(auto it=sd_set.begin();it!=sd_set.end();++it) {
+                                            if(*it != master_sd) {
+                                                if(send(*it, buf, rcv, 0) < 0) {
+                                                    LOG(WARNING) << "send() returned an error during broadcast mode";
+                                                    break;
+                                                }
+                                            }
+                                        }
                                     }
                             }
                         }
@@ -109,7 +124,7 @@ int main(int argc, char* argv[]) {
                 }
         }
     }
-    for(auto it = fd_set.begin(); it != fd_set.end(); ++it)
+    for(auto it=sd_set.begin();it!=sd_set.end();++it)
         if(FD_ISSET(*it, &master_set))
             close(*it);
 
