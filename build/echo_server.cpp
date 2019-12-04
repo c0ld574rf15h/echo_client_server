@@ -74,7 +74,6 @@ int main(int argc, char* argv[]) {
                     if(FD_ISSET(*it, &working_set)) {
                         int c_sd = 0;
                         if(*it == master_sd) {
-                            //do {
                             struct sockaddr_in c_addr;
                             socklen_t c_len = sizeof(sockaddr);
                             c_sd = accept(master_sd, reinterpret_cast<struct sockaddr*>(&c_addr), &c_len);
@@ -83,22 +82,21 @@ int main(int argc, char* argv[]) {
                                 break;
                             }
                             fd_set.insert(c_sd);
-                            LOG(INFO) << "New Incoming Connection - " << c_sd;
+                            LOG(INFO) << "New Incoming Connection - Client #" << c_sd;
                             FD_SET(c_sd, &master_set);
                             max_sd = max(max_sd, c_sd);
-                            //} while(c_sd != -1);
                         } else {
-                            //do {
                             char buf[MAX_MSGLEN];
                             int rcv = recv(*it, buf, MAX_MSGLEN, 0);
                             buf[rcv] = '\0';
                             switch(rcv) {
                                 case -1:
-                                    LOG(INFO) << "Something got wrong while receiving message";
+                                    LOG(INFO) << "Something got wrong while receiving messages";
                                     break;
                                 case CLOSE_CONN:
                                     LOG(WARNING) << "Connection has been closed by client - " << *it;
-                                    fd_set.erase(*it);
+                                    fd_set.erase(*it); FD_CLR(*it, &working_set);
+                                    break;
                                 default:
                                     LOG(INFO) << rcv << " Bytes Received [Client #" << *it << "] : " << buf;
                                     if(send(*it, buf, rcv, 0) < 0) {
@@ -106,7 +104,6 @@ int main(int argc, char* argv[]) {
                                         return ERROR;
                                     }
                             }
-                            //} while(true);
                         }
                     }
                 }

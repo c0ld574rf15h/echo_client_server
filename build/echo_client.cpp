@@ -35,11 +35,13 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "Connected to Server";
     while(true) {
         char buf[MAX_MSGLEN];
-        printf("Enter message: ");
         int len = read(0, buf, MAX_MSGLEN-1);
         buf[min(MAX_MSGLEN-1, len)] = '\0';
 
-        if(!strcmp(buf, "exit")) break;
+        if(!strncmp(buf, "exit", 4)) {
+            LOG(WARNING) << "Exiting program";
+            break;
+        }
         if(send(sd, buf, strlen(buf), 0) == -1) {
             LOG(ERROR) << "send() returned an error";
             return ERROR;
