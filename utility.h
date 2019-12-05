@@ -1,5 +1,16 @@
 #pragma once
 
+#include <arpa/inet.h>
+#include <glog/logging.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/select.h>
+
+#include <cstdlib>
+#include <set>
+#include <thread>
+
 #define ZERO_PAD            0   
 #define ERROR               -1
 #define BACKLOG             32
