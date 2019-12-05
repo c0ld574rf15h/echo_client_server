@@ -6,8 +6,8 @@ void recv_msg(int sd) {
     while(true) {
         int len = recv(sd, buf, MAX_MSGLEN-1, 0);
         buf[min(len, MAX_MSGLEN)] = '\0';
-        if(len == -1) {
-            LOG(ERROR) << "recv() returned an error";
+        if(len == -1 || len == 0) {
+            LOG(WARNING) << "Something has gone woopy";
             break;
         }
         LOG(INFO) << "Echo message from server : " << buf;
